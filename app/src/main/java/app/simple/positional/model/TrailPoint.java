@@ -5,7 +5,7 @@ import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
 @Entity(tableName = "trail_data")
-public class TrailData {
+public class TrailPoint {
 
     /**
      * Latitude of the trail
@@ -52,7 +52,7 @@ public class TrailData {
     @ColumnInfo(name = "accuracy")
     float accuracy;
 
-    public TrailData(double latitude, double longitude, long timeAdded, int iconPosition, String note, String name, float accuracy) {
+    public TrailPoint(double latitude, double longitude, long timeAdded, int iconPosition, String note, String name, float accuracy) {
         this.latitude = latitude;
         this.longitude = longitude;
         this.timeAdded = timeAdded;
