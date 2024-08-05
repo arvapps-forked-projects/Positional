@@ -2,6 +2,10 @@ package app.simple.positional.model;
 
 import androidx.annotation.NonNull;
 
+import com.google.android.gms.maps.model.LatLng;
+
+import java.util.ArrayList;
+
 public class MeasurePoint {
 
     private double latitude;
@@ -38,6 +42,10 @@ public class MeasurePoint {
         this.order = order;
     }
 
+    public LatLng getLatLng() {
+        return new LatLng(latitude, longitude);
+    }
+
     @NonNull
     @Override
     public String toString() {
@@ -46,6 +54,10 @@ public class MeasurePoint {
 
     public String convertForDatabase() {
         return latitude + "," + longitude + "," + order;
+    }
+
+    public ArrayList<MeasurePoint> convertForDatabase(ArrayList<MeasurePoint> measurePoints) {
+        return new ArrayList<>(measurePoints);
     }
 
     public static MeasurePoint convertFromDatabase(String data) {

@@ -1,0 +1,52 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "e6bf72c006660f9069be641aab26d9b2",
+    "entities": [
+      {
+        "tableName": "measures",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`date_added` INTEGER NOT NULL, `measure_name` TEXT, `measure_note` TEXT, `measure_points` TEXT, PRIMARY KEY(`date_added`))",
+        "fields": [
+          {
+            "fieldPath": "dateCreated",
+            "columnName": "date_added",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "measure_name",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "note",
+            "columnName": "measure_note",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "measurePoints",
+            "columnName": "measure_points",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "date_added"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e6bf72c006660f9069be641aab26d9b2')"
+    ]
+  }
+}

@@ -7,7 +7,9 @@ import androidx.lifecycle.viewModelScope
 import app.simple.positional.database.instances.MeasureDatabase
 import app.simple.positional.extensions.viewmodel.WrappedViewModel
 import app.simple.positional.model.Measure
+import app.simple.positional.model.MeasurePoint
 import app.simple.positional.preferences.MeasurePreferences
+import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -35,19 +37,49 @@ class MeasureViewModel(application: Application) : WrappedViewModel(application)
 
     private fun loadMeasureEntries() {
         viewModelScope.launch(Dispatchers.Default) {
-            val measureDatabase =
-                MeasureDatabase.getInstance(getApplication<Application>().applicationContext)!!
+            val measureDatabase = MeasureDatabase.getInstance(getApplication<Application>().applicationContext)!!
             val entries = measureDatabase.measureDao()?.getAllMeasures()
             measureEntries.postValue(entries as ArrayList<Measure>)
         }
     }
 
-    private fun loadMeasure(id: Int) {
+    private fun loadMeasure(id: Long) {
         viewModelScope.launch(Dispatchers.Default) {
-            val measureDatabase =
-                MeasureDatabase.getInstance(getApplication<Application>().applicationContext)!!
+            val measureDatabase = MeasureDatabase.getInstance(getApplication<Application>().applicationContext)!!
             val measure = measureDatabase.measureDao()?.getMeasureById(id)
             this@MeasureViewModel.measure.postValue(measure)
         }
+    }
+
+    fun addMeasure(name: String, note: String) {
+        viewModelScope.launch(Dispatchers.Default) {
+            val measureDatabase = MeasureDatabase.getInstance(getApplication<Application>().applicationContext)!!
+            val measure = Measure(name, note)
+            measureDatabase.measureDao()?.insertMeasure(measure)
+            MeasurePreferences.setLastSelectedMeasure(measure.dateCreated)
+            loadMeasure(measure.dateCreated)
+        }
+    }
+
+    fun addMeasurePoint(latLng: LatLng) {
+        viewModelScope.launch(Dispatchers.Default) {
+            val measureDatabase = MeasureDatabase.getInstance(getApplication<Application>().applicationContext)!!
+            val measure = measure.value
+            measure?.let {
+                val measurePoint = MeasurePoint(
+                    latLng.latitude, latLng.longitude, measure.measurePoints?.size?.plus(1) ?: 0)
+                measure.measurePoints?.add(measurePoint)
+                measureDatabase.measureDao()?.updateMeasure(measure)
+            }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        MeasureDatabase.destroyInstance()
+    }
+
+    companion object {
+        private const val TAG = "MeasureViewModel"
     }
 }
