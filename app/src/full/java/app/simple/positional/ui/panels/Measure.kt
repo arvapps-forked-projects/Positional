@@ -1,25 +1,23 @@
 package app.simple.positional.ui.panels
 
-import android.annotation.SuppressLint
+import android.content.Intent
 import android.content.SharedPreferences
 import android.location.Location
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.ImageView
-import androidx.activity.OnBackPressedCallback
+import android.widget.TextView
 import androidx.activity.OnBackPressedDispatcher
-import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
+import androidx.transition.TransitionManager
 import app.simple.positional.R
-import app.simple.positional.adapters.bottombar.BottomBarItems
-import app.simple.positional.adapters.measure.AdapterMeasurePoints
+import app.simple.positional.activities.subacitivity.MeasuresActivity
 import app.simple.positional.callbacks.BottomSheetSlide
+import app.simple.positional.decorations.corners.DynamicCornerConstraintLayout
 import app.simple.positional.decorations.measure.MeasureMaps
 import app.simple.positional.decorations.measure.MeasureToolbar
 import app.simple.positional.decorations.measure.MeasureToolbarCallbacks
@@ -30,45 +28,49 @@ import app.simple.positional.dialogs.measure.MeasureAdd.Companion.showMeasureAdd
 import app.simple.positional.dialogs.measure.MeasureMenu.Companion.showMeasureMenu
 import app.simple.positional.extensions.fragment.ScopedFragment
 import app.simple.positional.extensions.maps.MapsCallbacks
+import app.simple.positional.math.MathExtensions.round
+import app.simple.positional.math.UnitConverter.toFeet
+import app.simple.positional.math.UnitConverter.toKilometers
+import app.simple.positional.math.UnitConverter.toMiles
 import app.simple.positional.model.MeasurePoint
+import app.simple.positional.preferences.MainPreferences
 import app.simple.positional.preferences.MeasurePreferences
+import app.simple.positional.singleton.FloatingButtonStateCommunicator
 import app.simple.positional.util.ConditionUtils.invert
 import app.simple.positional.util.ConditionUtils.isNotNull
 import app.simple.positional.util.LocationExtension
 import app.simple.positional.util.LocationPrompt
 import app.simple.positional.util.ParcelUtils.parcelable
-import app.simple.positional.util.StatusBarHeight
+import app.simple.positional.util.ViewUtils.gone
 import app.simple.positional.util.ViewUtils.visible
 import app.simple.positional.viewmodels.viewmodel.LocationViewModel
 import app.simple.positional.viewmodels.viewmodel.MeasureViewModel
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.material.bottomsheet.BottomSheetBehavior
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import app.simple.positional.model.Measure as Measure_Model
 
-class Measure : ScopedFragment() {
+class Measure : ScopedFragment(), FloatingButtonStateCommunicator.FloatingButtonStateCallbacks {
 
     private lateinit var toolbar: MeasureToolbar
     private lateinit var tools: MeasureTools
-    private lateinit var recyclerView: RecyclerView
-    private var bottomSheetPanel: BottomSheetBehavior<CoordinatorLayout>? = null
-    private lateinit var bottomSheetSlide: BottomSheetSlide
-    private lateinit var expandUp: ImageView
-    private lateinit var art: ImageView
     private lateinit var crossHair: ImageView
-    private lateinit var dim: View
+    private lateinit var bottomContainer: DynamicCornerConstraintLayout
+    private lateinit var name: TextView
+    private lateinit var currentDistance: TextView
+    private lateinit var totalDistance: TextView
+    private lateinit var totalPoints: TextView
 
     private var location: Location? = null
     private var backPress: OnBackPressedDispatcher? = null
     private var maps: MeasureMaps? = null
-    private var adapterMeasurePoints: AdapterMeasurePoints? = null
+    private var bottomSheetSlide: BottomSheetSlide? = null
 
     private lateinit var locationViewModel: LocationViewModel
     private lateinit var measureViewModel: MeasureViewModel
 
     private var isFullScreen = false
-    private var peekHeight = 0
     private var x = 0F
     private var y = 0F
 
@@ -78,33 +80,19 @@ class Measure : ScopedFragment() {
         toolbar = view.findViewById(R.id.toolbar)
         tools = view.findViewById(R.id.tools)
         maps = view.findViewById(R.id.map)
-        recyclerView = view.findViewById(R.id.recycler_view)
-        expandUp = view.findViewById(R.id.expand_up)
-        art = view.findViewById(R.id.art)
-        dim = view.findViewById(R.id.dim)
         crossHair = view.findViewById(R.id.cross_hair)
+        bottomContainer = view.findViewById(R.id.bottom_container)
+        name = view.findViewById(R.id.name)
+        currentDistance = view.findViewById(R.id.current_distance)
+        totalDistance = view.findViewById(R.id.total_distance)
+        totalPoints = view.findViewById(R.id.total_points)
 
-        kotlin.runCatching {
-            bottomSheetPanel = BottomSheetBehavior.from(view.findViewById(R.id.bottom_sheet))
-        }
-
-        bottomSheetSlide = requireActivity() as BottomSheetSlide
         backPress = requireActivity().onBackPressedDispatcher
         maps?.onCreate(savedInstanceState)
+        bottomSheetSlide = requireActivity() as BottomSheetSlide
 
         locationViewModel = ViewModelProvider(requireActivity())[LocationViewModel::class.java]
         measureViewModel = ViewModelProvider(requireActivity())[MeasureViewModel::class.java]
-
-        recyclerView.apply {
-            setPadding(paddingLeft,
-                paddingTop + StatusBarHeight.getStatusBarHeight(resources),
-                paddingRight,
-                paddingBottom)
-
-            alpha = if (isLandscapeOrientation) 1F else 0F
-        }
-
-        peekHeight = bottomSheetPanel?.peekHeight ?: 0
 
         return view
     }
@@ -123,7 +111,7 @@ class Measure : ScopedFragment() {
             }
 
             override fun onMeasures(view: View?) {
-                Log.d(TAG, "onMeasures: ")
+                startActivity(Intent(requireContext(), MeasuresActivity::class.java))
             }
 
             override fun onMenu(view: View?) {
@@ -149,14 +137,11 @@ class Measure : ScopedFragment() {
             }
 
             override fun onNewAdd(view: View?) {
-                Log.d(TAG, "onNewAdd: ")
-                maps?.addPolyline {
-                    measureViewModel.addMeasurePoint(it)
-                }
+                maps?.addPolyline()
             }
 
             override fun onClearRecentMarker(view: View?) {
-                maps?.clearRecentMarker()
+                maps?.removeRecentPolyline()
             }
         })
 
@@ -182,15 +167,18 @@ class Measure : ScopedFragment() {
                 }
 
                 measureViewModel.getMeasure().observe(viewLifecycleOwner) { measure ->
-                    crossHair.visible(animate = true)
-                    maps?.createMeasurePolylines(measure)
-
-                    if (measure.isNotNull()) {
-                        adapterMeasurePoints = AdapterMeasurePoints(measure)
-                        recyclerView.layoutManager = LinearLayoutManager(requireContext())
-                        recyclerView.adapter = adapterMeasurePoints
+                    if (MeasurePreferences.isMeasureSelected() && measure.isNotNull()) {
+                        crossHair.visible(animate = true)
+                        maps?.createMeasurePolylines(measure)
+                        name.text = measure.name
+                        setTotalPoints(measure)
+                        setTotalDistance(measure)
+                        setCurrentDistance(null)
+                        tools.measureMode()
+                        bottomContainer.visible(true)
                     } else {
-                        art.visible(animate = false)
+                        clearMeasure()
+                        tools.noMeasureMode()
                     }
                 }
             }
@@ -201,75 +189,129 @@ class Measure : ScopedFragment() {
                 }
             }
 
+            override fun onLineAdded(measurePoint: MeasurePoint) {
+                measureViewModel.addMeasurePoint(measurePoint) {
+                    requireActivity().runOnUiThread {
+                        setTotalPoints(it)
+                        setTotalDistance(it)
+                        setCurrentDistance(measurePoint.latLng)
+                    }
+                }
+            }
+
             override fun onLineDeleted(measurePoint: MeasurePoint?) {
-                measureViewModel.removeMeasurePoint(measurePoint)
+                measureViewModel.removeMeasurePoint(measurePoint) {
+                    requireActivity().runOnUiThread {
+                        setTotalPoints(it)
+                        setTotalDistance(it)
+                    }
+                }
+            }
+
+            override fun onCameraDistance(latLng: LatLng?) {
+                setCurrentDistance(latLng!!)
             }
         })
+    }
 
-        bottomSheetPanel?.addBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
-            @SuppressLint("SwitchIntDef")
-            override fun onStateChanged(bottomSheet: View, newState: Int) {
-                when (newState) {
-                    BottomSheetBehavior.STATE_EXPANDED  -> {
-                        backPressed(true)
-                    }
-                    BottomSheetBehavior.STATE_COLLAPSED -> {
-                        backPressed(false)
-                        if (backPress!!.hasEnabledCallbacks()) {
-                            backPress?.onBackPressed()
+    private fun clearMeasure() {
+        maps?.clear()
+        bottomContainer.gone(true)
+        crossHair.gone(true)
+    }
+
+    private fun setTotalPoints(measure: Measure_Model) {
+        totalPoints.text = buildString {
+            append(getString(R.string.total))
+            append(" ")
+            append(measure.measurePoints?.size.toString())
+        }
+    }
+
+    private fun setTotalDistance(measure: Measure_Model) {
+        totalDistance.text = buildString {
+            append(getString(R.string.gps_displacement))
+            append(" ")
+
+            val distance: Double = (measure.measurePoints?.map { LatLng(it.latitude, it.longitude) }?.toTypedArray()?.let {
+                LocationExtension.measureDisplacement(it)
+            } ?: 0.0).toDouble()
+
+            if (MainPreferences.isMetric()) {
+                if (distance < 1000) {
+                    append(round(distance, 2))
+                    append(" ")
+                    append(getString(R.string.meter))
+                } else {
+                    append(round(distance.toKilometers(), 2))
+                    append(" ")
+                    append(getString(R.string.kilometer))
+                }
+            } else {
+                if (distance < 1609) {
+                    append(distance.toFeet())
+                    append(" ")
+                    append(getString(R.string.feet))
+                } else {
+                    append(round(distance.toMiles(), 2))
+                    append(" ")
+                    append(getString(R.string.miles))
+                }
+            }
+        }
+    }
+
+    private fun setCurrentDistance(latLng: LatLng?) {
+        runCatching {
+            if (maps?.getMeasurePoints()?.isNotEmpty() == true) {
+                currentDistance.visible(false)
+                val points: Array<LatLng> = arrayOf(maps?.getMeasurePoints()?.lastOrNull()!!.latLng, latLng!!)
+                val distance = LocationExtension.measureDisplacement(points).toDouble()
+
+                currentDistance.text = buildString {
+                    if (MainPreferences.isMetric()) {
+                        if (distance < 1000) {
+                            append(round(distance, 2))
+                            append(" ")
+                            append(getString(R.string.meter))
+                        } else {
+                            append(round(distance.toKilometers(), 2))
+                            append(" ")
+                            append(getString(R.string.kilometer))
+                        }
+                    } else {
+                        if (distance < 1609) {
+                            append(round(distance.toFeet(), 2))
+                            append(" ")
+                            append(getString(R.string.feet))
+                        } else {
+                            append(round(distance.toMiles(), 2))
+                            append(" ")
+                            append(getString(R.string.miles))
                         }
                     }
                 }
+            } else {
+                currentDistance.gone()
             }
-
-            override fun onSlide(bottomSheet: View, slideOffset: Float) {
-                recyclerView.alpha = slideOffset
-                expandUp.alpha = 1 - slideOffset
-                dim.alpha = slideOffset
-                if (!isFullScreen) {
-                    bottomSheetSlide.onBottomSheetSliding(slideOffset, true)
-                }
-            }
-        })
+        }
     }
 
     private fun setFullScreen() {
         if (isFullScreen) {
             toolbar.show()
-            bottomSheetPanel?.peekHeight = peekHeight
         } else {
             toolbar.hide()
-            bottomSheetPanel?.peekHeight = 0
         }
 
-        if (isLandscapeOrientation) {
-            toolbar.show()
-            bottomSheetSlide.onMapClicked(fullScreen = true)
-        } else {
-            bottomSheetSlide.onMapClicked(fullScreen = isFullScreen)
-        }
-
+        bottomSheetSlide?.onMapClicked(isFullScreen)
         isFullScreen = !isFullScreen
-    }
-
-    private fun backPressed(value: Boolean) {
-        backPress?.addCallback(viewLifecycleOwner, object : OnBackPressedCallback(value) {
-            override fun handleOnBackPressed() {
-                if (bottomSheetPanel?.state == BottomSheetBehavior.STATE_EXPANDED) {
-                    bottomSheetPanel?.state = BottomSheetBehavior.STATE_COLLAPSED
-                }
-                /**
-                 * Remove this callback as soon as it's been called
-                 * to prevent any further registering
-                 */
-                remove()
-            }
-        })
     }
 
     override fun onResume() {
         super.onResume()
         maps?.onResume()
+        FloatingButtonStateCommunicator.addFloatingButtonStateCallbacks(this)
     }
 
     override fun onPause() {
@@ -280,6 +322,7 @@ class Measure : ScopedFragment() {
     override fun onDestroy() {
         super.onDestroy()
         maps?.onDestroy()
+        FloatingButtonStateCommunicator.removeFloatingButtonStateCallbacks(this)
     }
 
     override fun onLowMemory() {
@@ -290,7 +333,11 @@ class Measure : ScopedFragment() {
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
         super.onSharedPreferenceChanged(sharedPreferences, key)
         when (key) {
-
+            MeasurePreferences.LAST_SELECTED_MEASURE -> {
+                if (MeasurePreferences.isMeasureSelected().invert()) {
+                    clearMeasure()
+                }
+            }
         }
     }
 
@@ -298,8 +345,6 @@ class Measure : ScopedFragment() {
         outState.putFloat(TRANSLATION, toolbar.translationY)
         outState.putBoolean(FULL_SCREEN, isFullScreen)
         outState.putParcelable(CAMERA, maps?.getCamera())
-        outState.putInt(BOTTOM_SHEET_STATE, bottomSheetPanel?.state
-                                            ?: BottomSheetBehavior.STATE_COLLAPSED)
         super.onSaveInstanceState(outState)
     }
 
@@ -311,11 +356,17 @@ class Measure : ScopedFragment() {
             } else {
                 setFullScreen()
             }
-
-            bottomSheetPanel?.state = it.getInt(BOTTOM_SHEET_STATE, BottomSheetBehavior.STATE_COLLAPSED)
         }
 
         super.onViewStateRestored(savedInstanceState)
+    }
+
+    override fun onFloatingButtonStateChange(size: Int) {
+        TransitionManager.beginDelayedTransition(bottomContainer)
+        val marginLayoutParams = bottomContainer.layoutParams as FrameLayout.LayoutParams
+        marginLayoutParams.rightMargin = size
+        bottomContainer.layoutParams = marginLayoutParams
+        bottomContainer.requestLayout()
     }
 
     companion object {
@@ -326,11 +377,10 @@ class Measure : ScopedFragment() {
             return fragment
         }
 
-        const val TAG = BottomBarItems.MEASURE
+        const val TAG = "Measure"
 
         private const val CAMERA = "camera"
         private const val FULL_SCREEN = "fullscreen"
         private const val TRANSLATION = "translation"
-        private const val BOTTOM_SHEET_STATE = "bottom_sheet_state"
     }
 }

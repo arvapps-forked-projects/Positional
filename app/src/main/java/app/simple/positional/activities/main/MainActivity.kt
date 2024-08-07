@@ -9,12 +9,13 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.LayoutInflater
-import android.view.MotionEvent
 import android.view.View
-import android.view.animation.DecelerateInterpolator
+import android.view.ViewTreeObserver
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
+import androidx.core.view.marginEnd
+import androidx.core.view.marginStart
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
@@ -35,6 +36,7 @@ import app.simple.positional.preferences.FragmentPreferences
 import app.simple.positional.preferences.MainPreferences
 import app.simple.positional.services.FusedLocationService
 import app.simple.positional.services.LocationService
+import app.simple.positional.singleton.FloatingButtonStateCommunicator
 import app.simple.positional.singleton.SharedPreferences
 import app.simple.positional.ui.panels.Compass
 import app.simple.positional.ui.panels.Direction
@@ -49,6 +51,8 @@ import app.simple.positional.util.ConditionUtils.isNull
 import app.simple.positional.util.LocationExtension.getLocationStatus
 import app.simple.positional.util.LocationPrompt.displayLocationSettingsRequest
 import app.simple.positional.util.ViewUtils
+import app.simple.positional.util.ViewUtils.gone
+import app.simple.positional.util.ViewUtils.visible
 import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.OnMapsSdkInitializedCallback
 
@@ -64,7 +68,9 @@ class MainActivity : BaseActivity(),
     private lateinit var label: TextView
     private lateinit var bottomBarAdapter: BottomBarAdapter
     private lateinit var popupContainer: View
+
     private val handler = Handler(Looper.getMainLooper())
+    private var bottomBarContainerGlobalLayoutListener: ViewTreeObserver.OnGlobalLayoutListener? = null
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -140,16 +146,20 @@ class MainActivity : BaseActivity(),
                     }
                 }
 
-                override fun onPageScrolled(
-                    position: Int,
-                    positionOffset: Float,
-                    positionOffsetPixels: Int
-                ) {
+                override fun onPageScrolled(position: Int, positionOffset: Float, positionOffsetPixels: Int) {
                     super.onPageScrolled(position, positionOffset, positionOffsetPixels)
                     label.text = BottomBarItems.getBottomBarItems(baseContext)[position].name
                 }
             })
         }
+
+        bottomBarContainerGlobalLayoutListener = ViewTreeObserver.OnGlobalLayoutListener {
+            val size = bottomBarContainer.width + bottomBarContainer.marginStart + bottomBarContainer.marginEnd
+            FloatingButtonStateCommunicator.setFloatingButtonSize(size)
+            FloatingButtonStateCommunicator.notifyFloatingButtonStateChange(size)
+        }
+
+        bottomBarContainer.viewTreeObserver.addOnGlobalLayoutListener(bottomBarContainerGlobalLayoutListener)
 
         checkRunTimePermission()
         MainPreferences.setLaunchCount(MainPreferences.getLaunchCount() + 1)
@@ -172,34 +182,16 @@ class MainActivity : BaseActivity(),
     }
 
     override fun onDestroy() {
-        super.onDestroy()
         handler.removeCallbacksAndMessages(null)
-    }
+        bottomBarContainer.viewTreeObserver.removeOnGlobalLayoutListener(bottomBarContainerGlobalLayoutListener)
 
-    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
-        when (ev?.action) {
-            MotionEvent.ACTION_DOWN -> {
-                Log.d("MainActivity", "dispatchTouchEvent: ")
-                // Check if touch region is inside the bottom bar
-                if (ev.rawY < bottomBarContainer.y || ev.rawX < bottomBarContainer.x) {
-                    // showBottomBarMenu()
-                    Log.d("MainActivity", "dispatchTouchEvent: inside")
-                } else {
-                    /* no-op */
-                }
-            }
-
-            MotionEvent.ACTION_UP -> {
-                /* no-op */
-            }
-        }
-        return super.dispatchTouchEvent(ev)
+        super.onDestroy()
     }
 
     @Suppress("unused")
     private fun layOutPopupData() {
         popupContainer = LayoutInflater.from(baseContext)
-            .inflate(R.layout.popup_fragments, PopupLinearLayout(baseContext), true)
+                .inflate(R.layout.popup_fragments, PopupLinearLayout(baseContext), true)
 
         popupContainer.findViewById<DynamicRippleTextView>(R.id.clock).setOnClickListener {
             bottomBar.setCurrentItem(0, true)
@@ -268,13 +260,13 @@ class MainActivity : BaseActivity(),
 
     private fun checkRunTimePermission() {
         if (ActivityCompat.checkSelfPermission(
-                applicationContext,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
+                    applicationContext,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ) != PackageManager.PERMISSION_GRANTED
             && ActivityCompat.checkSelfPermission(
-                applicationContext,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
+                    applicationContext,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) != PackageManager.PERMISSION_GRANTED
         ) {
             if (MainPreferences.getShowPermissionDialog()) {
                 onGrantRequest()
@@ -299,7 +291,7 @@ class MainActivity : BaseActivity(),
             } else {
                 Toast.makeText(this, R.string.location_permission_denied, Toast.LENGTH_LONG).show()
                 Toast.makeText(this, R.string.no_location_permission_alert, Toast.LENGTH_LONG)
-                    .show()
+                        .show()
             }
         }
     }
@@ -347,9 +339,9 @@ class MainActivity : BaseActivity(),
     private fun openFragment(tag: String) {
         getFragment(tag).let {
             supportFragmentManager.beginTransaction()
-                .setCustomAnimations(R.anim.dialog_in, R.anim.dialog_out)
-                .replace(R.id.containers, it, tag)
-                .commit()
+                    .setCustomAnimations(R.anim.dialog_in, R.anim.dialog_out)
+                    .replace(R.id.containers, it, tag)
+                    .commit()
         }
     }
 
@@ -357,47 +349,47 @@ class MainActivity : BaseActivity(),
         when (name) {
             BottomBarItems.CLOCK -> {
                 return supportFragmentManager.findFragmentByTag(BottomBarItems.CLOCK) as Time?
-                    ?: Time.newInstance()
+                       ?: Time.newInstance()
             }
 
             BottomBarItems.COMPASS -> {
                 return supportFragmentManager.findFragmentByTag(BottomBarItems.COMPASS) as Compass?
-                    ?: Compass.newInstance()
+                       ?: Compass.newInstance()
             }
 
             BottomBarItems.DIRECTION -> {
                 return supportFragmentManager.findFragmentByTag(BottomBarItems.DIRECTION) as Direction?
-                    ?: Direction.newInstance()
+                       ?: Direction.newInstance()
             }
 
             BottomBarItems.LOCATION -> {
                 return supportFragmentManager.findFragmentByTag(BottomBarItems.LOCATION) as GPS?
-                    ?: GPS.newInstance()
+                       ?: GPS.newInstance()
             }
 
             BottomBarItems.TRAIL -> {
                 return supportFragmentManager.findFragmentByTag(BottomBarItems.TRAIL) as Trail?
-                    ?: Trail.newInstance()
+                       ?: Trail.newInstance()
             }
 
             BottomBarItems.MEASURE -> {
                 return supportFragmentManager.findFragmentByTag(BottomBarItems.MEASURE) as Measure?
-                    ?: Measure.newInstance()
+                       ?: Measure.newInstance()
             }
 
             BottomBarItems.LEVEL -> {
                 return supportFragmentManager.findFragmentByTag(BottomBarItems.LEVEL) as Level?
-                    ?: Level.newInstance()
+                       ?: Level.newInstance()
             }
 
             BottomBarItems.SETTINGS -> {
                 return supportFragmentManager.findFragmentByTag(BottomBarItems.SETTINGS) as Settings?
-                    ?: Settings.newInstance()
+                       ?: Settings.newInstance()
             }
 
             else -> {
                 return supportFragmentManager.findFragmentByTag(BottomBarItems.LOCATION) as GPS?
-                    ?: GPS.newInstance()
+                       ?: GPS.newInstance()
             }
         }
     }
@@ -410,17 +402,9 @@ class MainActivity : BaseActivity(),
 
     override fun onMapClicked(fullScreen: Boolean) {
         if (fullScreen) {
-            bottomBarContainer.animate()
-                .scaleX(1F)
-                .scaleY(1F)
-                .alpha(1F)
-                .setInterpolator(DecelerateInterpolator(1.5F)).start()
+            bottomBarContainer.visible(true)
         } else {
-            bottomBarContainer.animate()
-                .scaleX(0F)
-                .scaleY(0F)
-                .alpha(0F)
-                .setInterpolator(DecelerateInterpolator(1.5F)).start()
+            bottomBarContainer.gone(true)
         }
     }
 

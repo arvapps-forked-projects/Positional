@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:animateLayoutChanges="false"
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:orientation="vertical">
+
+    <app.simple.positional.decorations.measure.MeasureTools
+        android:id="@+id/tools"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
+        android:layout_marginHorizontal="@dimen/trail_tools_margin"
+        android:animateLayoutChanges="true"
+        android:backgroundTint="@color/mainBackground"
+        android:elevation="10dp"
+        android:orientation="vertical"
+        android:padding="@dimen/trail_tools_padding" />
+
+    <app.simple.positional.decorations.measure.MeasureToolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:backgroundTint="@color/mainBackground"
+        android:elevation="5dp" />
+
+    <app.simple.positional.decorations.measure.MeasureMaps
+        android:id="@+id/map"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0" />
+
+    <ImageView
+        android:id="@+id/cross_hair"
+        android:layout_width="@dimen/app_button_size"
+        android:layout_height="@dimen/app_button_size"
+        android:layout_gravity="center"
+        android:focusable="false"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_crosshair"
+        android:visibility="gone"
+        app:tint="@color/iconColor"
+        tools:ignore="ContentDescription" />
+
+    <app.simple.positional.decorations.corners.DynamicCornerConstraintLayout
+        android:id="@+id/bottom_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_margin="@dimen/floating_button_margin"
+        android:backgroundTint="@color/mainBackground"
+        android:elevation="@dimen/app_views_elevation"
+        android:padding="@dimen/toolbar_padding">
+
+        <TextView
+            android:id="@+id/name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:ellipsize="marquee"
+            android:fontFamily="@font/medium"
+            android:marqueeRepeatLimit="marquee_forever"
+            android:singleLine="true"
+            android:textColor="?attr/colorAppAccent"
+            android:textSize="@dimen/info_text_secondary_size"
+            app:layout_constraintBottom_toTopOf="@+id/total_points"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/total_points"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:fontFamily="@font/medium"
+            android:textColor="@color/textPrimary"
+            android:textSize="@dimen/options_item_text_size"
+            app:layout_constraintBottom_toTopOf="@+id/total_distance"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/name" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:orientation="horizontal"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/total_points">
+
+            <TextView
+                android:id="@+id/total_distance"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/medium"
+                android:textColor="@color/textPrimary"
+                android:textSize="@dimen/options_item_text_size" />
+
+            <TextView
+                android:id="@+id/current_distance"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:drawablePadding="4dp"
+                android:drawableTint="@color/textSecondary"
+                android:fontFamily="@font/regular"
+                android:gravity="center_vertical"
+                android:textColor="@color/textSecondary"
+                android:textSize="@dimen/options_item_text_size"
+                app:drawableStartCompat="@drawable/ic_add_8dp" />
+
+        </LinearLayout>
+    </app.simple.positional.decorations.corners.DynamicCornerConstraintLayout>
+</FrameLayout>
